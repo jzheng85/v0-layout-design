@@ -1,10 +1,11 @@
 "use client"
 
-import { Home, BarChart3, FileText, Settings, Users, FolderOpen, ChevronLeft } from "lucide-react"
+import { Home, BarChart3, FileText, Settings, Users, FolderOpen, ChevronLeft, LogOut } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
+import { getAuthUser, clearAuth } from "@/lib/auth"
 
 const navigation = [
   { name: "Overview", icon: Home, href: "/" },
@@ -18,6 +19,8 @@ const navigation = [
 export function Sidebar() {
   const [isCollapsed, setIsCollapsed] = useState(false)
   const pathname = usePathname()
+  const router = useRouter()
+  const [user, setUser] = useState(getAuthUser())
 
   useEffect(() => {
     const mainElement = document.querySelector("main")
@@ -25,6 +28,12 @@ export function Sidebar() {
       mainElement.style.marginLeft = isCollapsed ? "5rem" : "16rem"
     }
   }, [isCollapsed])
+
+  const handleLogout = () => {
+    clearAuth()
+    router.push("/login")
+    router.refresh()
+  }
 
   return (
     <aside
@@ -56,7 +65,15 @@ export function Sidebar() {
           })}
         </nav>
 
-        <div className="px-3 mt-auto pt-4">
+        <div className="px-3 mt-auto pt-4 space-y-2">
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center justify-start gap-3 px-3 py-2.5 text-sm font-medium rounded-lg text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
+          >
+            <LogOut className="h-5 w-5 shrink-0" />
+            {!isCollapsed && "Logout"}
+          </button>
+
           <button
             onClick={() => setIsCollapsed(!isCollapsed)}
             className="w-full flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium rounded-lg text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
@@ -68,17 +85,23 @@ export function Sidebar() {
       </div>
 
       <div className="flex-shrink-0 flex border-t border-sidebar-border p-4">
-        <a href="#" className="flex items-center gap-3 w-full group">
-          <div className="h-9 w-9 rounded-full bg-sidebar-accent flex items-center justify-center">
-            <span className="text-sm font-semibold text-sidebar-accent-foreground">JD</span>
+        <div className="flex items-center gap-3 w-full">
+          <div className="h-9 w-9 rounded-full bg-sidebar-accent flex items-center justify-center shrink-0">
+            <span className="text-sm font-semibold text-sidebar-accent-foreground">
+              {user?.name
+                .split(" ")
+                .map((n) => n[0])
+                .join("")
+                .toUpperCase() || "U"}
+            </span>
           </div>
           {!isCollapsed && (
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-sidebar-foreground truncate">John Doe</p>
-              <p className="text-xs text-sidebar-foreground/60 truncate">john@example.com</p>
+              <p className="text-sm font-medium text-sidebar-foreground truncate">{user?.name || "User"}</p>
+              <p className="text-xs text-sidebar-foreground/60 truncate">{user?.email || "user@example.com"}</p>
             </div>
           )}
-        </a>
+        </div>
       </div>
     </aside>
   )

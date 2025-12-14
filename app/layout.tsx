@@ -2,8 +2,8 @@ import type React from "react"
 import type { Metadata } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
 import "./globals.css"
-import { Header } from "@/components/header"
-import { Sidebar } from "@/components/sidebar"
+import { AuthGuard } from "@/components/auth-guard"
+import { ProtectedLayout } from "@/components/protected-layout"
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -25,13 +25,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <body>
-        <div className="min-h-screen flex flex-col">
-          <Header />
-          <div className="flex flex-1 overflow-hidden">
-            <Sidebar />
-            <main className="flex-1 md:ml-64">{children}</main>
-          </div>
-        </div>
+        <AuthGuard>
+          <ProtectedLayout>{children}</ProtectedLayout>
+        </AuthGuard>
       </body>
     </html>
   )

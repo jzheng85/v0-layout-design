@@ -80,6 +80,7 @@ export function MergedTableDemo() {
               filterable: true,
               sortable: true,
               className: "font-medium",
+              defaultVisible: true,
             },
             {
               key: "team",
@@ -87,6 +88,7 @@ export function MergedTableDemo() {
               merge: true,
               filterable: true,
               sortable: true,
+              defaultVisible: true,
             },
             {
               key: "employee",
@@ -94,6 +96,7 @@ export function MergedTableDemo() {
               merge: false,
               filterable: true,
               sortable: true,
+              defaultVisible: true,
             },
             {
               key: "role",
@@ -101,6 +104,7 @@ export function MergedTableDemo() {
               merge: false,
               filterable: true,
               sortable: true,
+              defaultVisible: false,
             },
             {
               key: "status",
@@ -108,6 +112,7 @@ export function MergedTableDemo() {
               merge: false,
               filterable: true,
               sortable: true,
+              defaultVisible: true,
               render: (value) => (
                 <span
                   className={cn(
@@ -124,6 +129,7 @@ export function MergedTableDemo() {
               header: "完成度",
               merge: false,
               sortable: true,
+              defaultVisible: true,
               render: (value) => <CircularProgress value={value as number} />,
             },
           ]}

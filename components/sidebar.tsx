@@ -2,7 +2,7 @@
 
 import { Home, BarChart3, FileText, Settings, Users, FolderOpen, ChevronLeft } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 
@@ -19,10 +19,17 @@ export function Sidebar() {
   const [isCollapsed, setIsCollapsed] = useState(false)
   const pathname = usePathname()
 
+  useEffect(() => {
+    const mainElement = document.querySelector("main")
+    if (mainElement) {
+      mainElement.style.marginLeft = isCollapsed ? "5rem" : "16rem"
+    }
+  }, [isCollapsed])
+
   return (
     <aside
       className={cn(
-        "hidden md:flex md:flex-col border-r border-border bg-sidebar transition-all duration-300 h-[calc(100vh-4rem)] sticky top-16",
+        "hidden md:flex md:flex-col border-r border-border bg-sidebar transition-all duration-300 h-[calc(100vh-4rem)] fixed top-16 left-0 z-30",
         isCollapsed ? "md:w-20" : "md:w-64",
       )}
     >

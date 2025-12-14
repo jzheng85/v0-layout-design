@@ -10,16 +10,18 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuCheckboxItem,
 } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
-import { MoreVertical, ArrowUp, ArrowDown, X } from "lucide-react"
+import { MoreVertical, ArrowUp, ArrowDown, X, Columns3, GripVertical, ChevronUp, ChevronDown } from "lucide-react"
 
 interface MergedTableColumn<T> {
   key: keyof T
   header: string
-  merge?: boolean // 是否启用该列的合并功能
-  filterable?: boolean // 是否启用该列的过滤功能
-  sortable?: boolean // 是否启用该列的排序功能
+  merge?: boolean
+  filterable?: boolean
+  sortable?: boolean
+  defaultVisible?: boolean
   render?: (value: T[keyof T], row: T) => React.ReactNode
   className?: string
 }
@@ -44,6 +46,20 @@ export function MergedTable<T extends Record<string, any>>({ data, columns, clas
     direction: null,
   })
   const [openDropdown, setOpenDropdown] = React.useState<string | null>(null)
+  const [visibleColumns, setVisibleColumns] = React.useState<Record<string, boolean>>(() => {
+    const initial: Record<string, boolean> = {}
+    columns.forEach((col) => {
+      initial[String(col.key)] = col.defaultVisible !== false
+    })
+    return initial
+  })
+  const [columnOrder, setColumnOrder] = React.useState<string[]>(() => columns.map((col) => String(col.key)))
+
+  const displayColumns = React.useMemo(() => {
+    return columnOrder
+      .map((key) => columns.find((col) => String(col.key) === key))
+      .filter((col): col is MergedTableColumn<T> => col !== undefined && visibleColumns[String(col.key)])
+  }, [columns, visibleColumns, columnOrder])
 
   const sortedAndFilteredData = React.useMemo(() => {
     const processedData = [...data]
@@ -85,7 +101,7 @@ export function MergedTable<T extends Record<string, any>>({ data, columns, clas
   const calculateMerges = React.useMemo(() => {
     const mergeMap: Record<string, CellSpan[]> = {}
 
-    columns.forEach((column) => {
+    displayColumns.forEach((column) => {
       if (!column.merge) {
         mergeMap[String(column.key)] = sortedAndFilteredData.map(() => ({
           rowSpan: 1,
@@ -121,7 +137,7 @@ export function MergedTable<T extends Record<string, any>>({ data, columns, clas
     })
 
     return mergeMap
-  }, [sortedAndFilteredData, columns])
+  }, [sortedAndFilteredData, displayColumns])
 
   const handleFilterChange = (key: string, value: string) => {
     setFilters((prev) => ({
@@ -150,12 +166,39 @@ export function MergedTable<T extends Record<string, any>>({ data, columns, clas
     })
   }
 
+  const toggleColumnVisibility = (key: string) => {
+    setVisibleColumns((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }))
+  }
+
+  const moveColumnUp = (key: string) => {
+    setColumnOrder((prev) => {
+      const index = prev.indexOf(key)
+      if (index <= 0) return prev
+      const newOrder = [...prev]
+      ;[newOrder[index - 1], newOrder[index]] = [newOrder[index], newOrder[index - 1]]
+      return newOrder
+    })
+  }
+
+  const moveColumnDown = (key: string) => {
+    setColumnOrder((prev) => {
+      const index = prev.indexOf(key)
+      if (index === -1 || index >= prev.length - 1) return prev
+      const newOrder = [...prev]
+      ;[newOrder[index], newOrder[index + 1]] = [newOrder[index + 1], newOrder[index]]
+      return newOrder
+    })
+  }
+
   return (
     <div className={cn("rounded-lg border bg-card", className)}>
       <Table>
         <TableHeader>
           <TableRow className="hover:bg-transparent border-b-2">
-            {columns.map((column) => {
+            {displayColumns.map((column) => {
               const hasFeatures = column.sortable || column.filterable
               const isFiltered = filters[String(column.key)]
               const isSorted = sortConfig.key === column.key
@@ -249,19 +292,69 @@ export function MergedTable<T extends Record<string, any>>({ data, columns, clas
                 </TableHead>
               )
             })}
+            <TableHead className="bg-muted/50 w-[60px]">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0 hover:bg-muted">
+                    <Columns3 className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <div className="px-2 py-1.5 text-sm font-semibold">Manage columns</div>
+                  <DropdownMenuSeparator />
+                  {columnOrder.map((key, index) => {
+                    const column = columns.find((col) => String(col.key) === key)
+                    if (!column) return null
+
+                    return (
+                      <div key={key} className="flex items-center gap-1 px-2 py-1.5 hover:bg-accent rounded-sm group">
+                        <div className="flex flex-col gap-0.5">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-3 w-4 p-0 hover:bg-muted opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={() => moveColumnUp(key)}
+                            disabled={index === 0}
+                          >
+                            <ChevronUp className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-3 w-4 p-0 hover:bg-muted opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={() => moveColumnDown(key)}
+                            disabled={index === columnOrder.length - 1}
+                          >
+                            <ChevronDown className="h-3 w-3" />
+                          </Button>
+                        </div>
+                        <GripVertical className="h-4 w-4 text-muted-foreground" />
+                        <DropdownMenuCheckboxItem
+                          checked={visibleColumns[key]}
+                          onCheckedChange={() => toggleColumnVisibility(key)}
+                          className="flex-1"
+                        >
+                          {column.header}
+                        </DropdownMenuCheckboxItem>
+                      </div>
+                    )
+                  })}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {sortedAndFilteredData.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={columns.length} className="text-center text-muted-foreground py-8">
+              <TableCell colSpan={displayColumns.length + 1} className="text-center text-muted-foreground py-8">
                 No results found
               </TableCell>
             </TableRow>
           ) : (
             sortedAndFilteredData.map((row, rowIndex) => (
               <TableRow key={rowIndex} className="hover:bg-transparent">
-                {columns.map((column) => {
+                {displayColumns.map((column) => {
                   const cellSpan = calculateMerges[String(column.key)][rowIndex]
 
                   if (cellSpan.skip) {
@@ -285,6 +378,7 @@ export function MergedTable<T extends Record<string, any>>({ data, columns, clas
                     </TableCell>
                   )
                 })}
+                <TableCell className="w-[60px]" />
               </TableRow>
             ))
           )}

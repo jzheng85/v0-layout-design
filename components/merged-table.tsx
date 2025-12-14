@@ -154,14 +154,17 @@ export function MergedTable<T extends Record<string, any>>({ data, columns, clas
     <div className={cn("rounded-lg border bg-card", className)}>
       <Table>
         <TableHeader>
-          <TableRow>
+          <TableRow className="hover:bg-transparent border-b-2">
             {columns.map((column) => {
               const hasFeatures = column.sortable || column.filterable
               const isFiltered = filters[String(column.key)]
               const isSorted = sortConfig.key === column.key
 
               return (
-                <TableHead key={String(column.key)} className={column.className}>
+                <TableHead
+                  key={String(column.key)}
+                  className={cn(column.className, "bg-muted/50 font-bold text-foreground h-14")}
+                >
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-semibold">{column.header}</span>
                     {hasFeatures && (

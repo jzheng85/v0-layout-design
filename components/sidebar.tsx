@@ -3,18 +3,21 @@
 import { Home, BarChart3, FileText, Settings, Users, FolderOpen, ChevronLeft } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useState } from "react"
+import Link from "next/link"
+import { usePathname } from "next/navigation"
 
 const navigation = [
-  { name: "Overview", icon: Home, current: true },
-  { name: "Analytics", icon: BarChart3, current: false },
-  { name: "Projects", icon: FolderOpen, current: false },
-  { name: "Documents", icon: FileText, current: false },
-  { name: "Team", icon: Users, current: false },
-  { name: "Settings", icon: Settings, current: false },
+  { name: "Overview", icon: Home, href: "/" },
+  { name: "Analytics", icon: BarChart3, href: "/analytics" },
+  { name: "Projects", icon: FolderOpen, href: "/projects" },
+  { name: "Documents", icon: FileText, href: "/documents" },
+  { name: "Team", icon: Users, href: "/team" },
+  { name: "Settings", icon: Settings, href: "/settings" },
 ]
 
 export function Sidebar() {
   const [isCollapsed, setIsCollapsed] = useState(false)
+  const pathname = usePathname()
 
   return (
     <aside
@@ -27,20 +30,21 @@ export function Sidebar() {
         <nav className="flex-1 px-3 space-y-1">
           {navigation.map((item) => {
             const Icon = item.icon
+            const isCurrent = pathname === item.href
             return (
-              <a
+              <Link
                 key={item.name}
-                href="#"
+                href={item.href}
                 className={cn(
                   "group flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-lg transition-colors",
-                  item.current
+                  isCurrent
                     ? "bg-sidebar-accent text-sidebar-accent-foreground"
                     : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
                 )}
               >
                 <Icon className="h-5 w-5 shrink-0" />
                 {!isCollapsed && item.name}
-              </a>
+              </Link>
             )
           })}
         </nav>

@@ -39,12 +39,15 @@ interface CellSpan {
 
 type SortDirection = "asc" | "desc" | null
 
+interface SortConfig<T> {
+  key: keyof T
+  direction: SortDirection
+  index: number
+}
+
 export function MergedTable<T extends Record<string, any>>({ data, columns, className }: MergedTableProps<T>) {
   const [filters, setFilters] = React.useState<Record<string, string>>({})
-  const [sortConfig, setSortConfig] = React.useState<{ key: keyof T | null; direction: SortDirection }>({
-    key: null,
-    direction: null,
-  })
+  const [sortConfigs, setSortConfigs] = React.useState<SortConfig<T>[]>([])
   const [openDropdown, setOpenDropdown] = React.useState<string | null>(null)
   const [visibleColumns, setVisibleColumns] = React.useState<Record<string, boolean>>(() => {
     const initial: Record<string, boolean> = {}
@@ -65,26 +68,41 @@ export function MergedTable<T extends Record<string, any>>({ data, columns, clas
   const sortedAndFilteredData = React.useMemo(() => {
     let processedData = [...data]
 
-    if (sortConfig.key && sortConfig.direction) {
+    // Apply multi-column sorting
+    if (sortConfigs.length > 0) {
+      // Sort the configs by their index (priority)
+      const sortedConfigs = [...sortConfigs].sort((a, b) => a.index - b.index)
+      
       processedData.sort((a, b) => {
-        const aValue = a[sortConfig.key!]
-        const bValue = b[sortConfig.key!]
+        for (const config of sortedConfigs) {
+          if (!config.direction) continue
+          
+          const aValue = a[config.key]
+          const bValue = b[config.key]
 
-        if (aValue === null || aValue === undefined) return 1
-        if (bValue === null || bValue === undefined) return -1
+          if (aValue === null || aValue === undefined) return 1
+          if (bValue === null || bValue === undefined) return -1
 
-        if (typeof aValue === "number" && typeof bValue === "number") {
-          return sortConfig.direction === "asc" ? aValue - bValue : bValue - aValue
+          let comparison = 0
+          if (typeof aValue === "number" && typeof bValue === "number") {
+            comparison = config.direction === "asc" ? aValue - bValue : bValue - aValue
+          } else {
+            const aStr = String(aValue).toLowerCase()
+            const bStr = String(bValue).toLowerCase()
+            comparison = aStr.localeCompare(bStr)
+            if (config.direction === "desc") {
+              comparison = -comparison
+            }
+          }
+
+          // If values are different, return the comparison result
+          if (comparison !== 0) {
+            return comparison
+          }
         }
-
-        const aStr = String(aValue).toLowerCase()
-        const bStr = String(bValue).toLowerCase()
-
-        if (sortConfig.direction === "asc") {
-          return aStr.localeCompare(bStr)
-        } else {
-          return bStr.localeCompare(aStr)
-        }
+        
+        // If all values are equal, return 0
+        return 0
       })
     }
 
@@ -95,23 +113,26 @@ export function MergedTable<T extends Record<string, any>>({ data, columns, clas
         if (!filterValue || !column.filterable) return true
 
         const cellValue = String(row[column.key]).toLowerCase()
-        return cellValue.includes(filterValue.toLowerCase())
+        // Split filter value by spaces and filter with OR logic
+        const keywords = filterValue.toLowerCase().split(/\s+/).filter(Boolean)
+        return keywords.some(keyword => cellValue.includes(keyword))
       })
     })
 
     // Apply global search
     if (globalSearch) {
-      const searchTerm = globalSearch.toLowerCase()
+      // Split search term by spaces and filter with OR logic
+      const keywords = globalSearch.toLowerCase().split(/\s+/).filter(Boolean)
       processedData = processedData.filter((row) => {
         return displayColumns.some((column) => {
           const cellValue = String(row[column.key]).toLowerCase()
-          return cellValue.includes(searchTerm)
+          return keywords.some(keyword => cellValue.includes(keyword))
         })
       })
     }
 
     return processedData
-  }, [data, filters, columns, sortConfig, globalSearch, displayColumns])
+  }, [data, filters, columns, sortConfigs, globalSearch, displayColumns])
 
   const calculateMerges = React.useMemo(() => {
     const mergeMap: Record<string, CellSpan[]> = {}
@@ -162,14 +183,37 @@ export function MergedTable<T extends Record<string, any>>({ data, columns, clas
   }
 
   const handleSort = (key: keyof T, direction: SortDirection) => {
-    setSortConfig({ key, direction })
+    setSortConfigs((prevConfigs) => {
+      // Check if this column is already in the sort configs
+      const existingIndex = prevConfigs.findIndex(config => config.key === key)
+      
+      if (existingIndex !== -1) {
+        // If exists, update its direction but keep its position (priority)
+        const updated = [...prevConfigs]
+        updated[existingIndex] = { ...updated[existingIndex], direction }
+        return updated
+      } else {
+        // If not exists, add it to the end with lowest priority
+        return [
+          ...prevConfigs,
+          { key, direction, index: prevConfigs.length }
+        ]
+      }
+    })
     setOpenDropdown(null)
   }
 
   const handleClearSort = (columnKey: keyof T) => {
-    if (sortConfig.key === columnKey) {
-      setSortConfig({ key: null, direction: null })
-    }
+    setSortConfigs((prevConfigs) => {
+      const updated = prevConfigs.filter(config => config.key !== columnKey)
+      // Reindex the remaining configs to maintain priority order
+      return updated.map((config, idx) => ({ ...config, index: idx }))
+    })
+    setOpenDropdown(null)
+  }
+
+  const handleClearAllSort = () => {
+    setSortConfigs([])
     setOpenDropdown(null)
   }
 
@@ -219,7 +263,7 @@ export function MergedTable<T extends Record<string, any>>({ data, columns, clas
         />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="flex items-center gap-2">
+            <Button variant="outline" size="sm" className="flex items-center gap-2">
               <Columns3 className="h-4 w-4" />
               View
             </Button>
@@ -274,7 +318,10 @@ export function MergedTable<T extends Record<string, any>>({ data, columns, clas
               {displayColumns.map((column) => {
                 const hasFeatures = column.sortable || column.filterable
                 const isFiltered = filters[String(column.key)]
-                const isSorted = sortConfig.key === column.key
+                const columnSortConfig = sortConfigs.find(config => config.key === column.key)
+                const isSorted = !!columnSortConfig
+                const sortDirection = columnSortConfig?.direction
+                const sortPriority = columnSortConfig ? columnSortConfig.index + 1 : undefined
 
                 return (
                   <TableHead
@@ -282,7 +329,19 @@ export function MergedTable<T extends Record<string, any>>({ data, columns, clas
                     className={cn(column.className, "font-bold text-foreground py-1")}
                   >
                     <div className="flex items-center justify-between gap-1 h-full">
-                      <span className="font-semibold">{column.header}</span>
+                      <div className="flex items-center gap-1">
+                        <span className="font-semibold">{column.header}</span>
+                        {isSorted && (
+                          <div className="flex items-center gap-1">
+                            {sortDirection === "asc" ? (
+                              <ArrowUp className="h-3 w-3 text-primary" />
+                            ) : (
+                              <ArrowDown className="h-3 w-3 text-primary" />
+                            )}
+                            <span className="text-xs text-primary">{sortPriority}</span>
+                          </div>
+                        )}
+                      </div>
                       {hasFeatures && (
                         <DropdownMenu
                           open={openDropdown === String(column.key)}
@@ -304,7 +363,7 @@ export function MergedTable<T extends Record<string, any>>({ data, columns, clas
                                   onClick={() => handleSort(column.key, "asc")}
                                   className={cn(
                                     "cursor-pointer",
-                                    sortConfig.key === column.key && sortConfig.direction === "asc" && "bg-accent",
+                                    isSorted && sortDirection === "asc" && "bg-accent",
                                   )}
                                 >
                                   <ArrowUp className="mr-2 h-4 w-4" />
@@ -314,7 +373,7 @@ export function MergedTable<T extends Record<string, any>>({ data, columns, clas
                                   onClick={() => handleSort(column.key, "desc")}
                                   className={cn(
                                     "cursor-pointer",
-                                    sortConfig.key === column.key && sortConfig.direction === "desc" && "bg-accent",
+                                    isSorted && sortDirection === "desc" && "bg-accent",
                                   )}
                                 >
                                   <ArrowDown className="mr-2 h-4 w-4" />
@@ -327,6 +386,15 @@ export function MergedTable<T extends Record<string, any>>({ data, columns, clas
                                   >
                                     <X className="mr-2 h-4 w-4" />
                                     Clear Sort
+                                  </DropdownMenuItem>
+                                )}
+                                {sortConfigs.length > 1 && (
+                                  <DropdownMenuItem
+                                    onClick={() => handleClearAllSort()}
+                                    className="cursor-pointer"
+                                  >
+                                    <X className="mr-2 h-4 w-4" />
+                                    Clear All Sorting
                                   </DropdownMenuItem>
                                 )}
                                 {column.filterable && <DropdownMenuSeparator />}

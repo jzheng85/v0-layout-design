@@ -1,7 +1,8 @@
 import { MergedTableClient, SampleData } from "./merged-table-client"
 
 async function fetchSampleData(): Promise<SampleData[]> {
-  const response = await fetch("http://localhost:8080/sample", {
+  const response = await fetch(process.env.BE_API_URL + "/sample", {
+    method: "GET",
     cache: "no-store", // 禁用缓存，确保每次都获取最新数据
   })
   

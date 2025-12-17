@@ -1,140 +1,46 @@
-"use client"
+import { MergedTableClient, SampleData } from "./merged-table-client"
 
-import { cn } from "@/lib/utils"
-
-import { MergedTable } from "./merged-table"
-import { CircularProgress } from "./circular-progress"
-
-interface SampleData {
-  department: string
-  team: string
-  employee: string
-  role: string
-  status: string
-  progress: number
+async function fetchSampleData(): Promise<SampleData[]> {
+  const response = await fetch("http://localhost:8080/sample", {
+    cache: "no-store", // 禁用缓存，确保每次都获取最新数据
+  })
+  
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`)
+  }
+  
+  return response.json()
 }
 
-const sampleData: SampleData[] = [
-  {
-    department: "技术部",
-    team: "前端团队",
-    employee: "张三",
-    role: "高级工程师",
-    status: "在职",
-    progress: 85,
-  },
-  {
-    department: "技术部",
-    team: "前端团队",
-    employee: "李四",
-    role: "工程师",
-    status: "在职",
-    progress: 92,
-  },
-  {
-    department: "技术部",
-    team: "后端团队",
-    employee: "王五",
-    role: "架构师",
-    status: "在职",
-    progress: 78,
-  },
-  {
-    department: "技术部",
-    team: "后端团队",
-    employee: "赵六",
-    role: "工程师",
-    status: "在职",
-    progress: 65,
-  },
-  {
-    department: "市场部",
-    team: "品牌团队",
-    employee: "孙七",
-    role: "经理",
-    status: "在职",
-    progress: 45,
-  },
-  {
-    department: "市场部",
-    team: "品牌团队",
-    employee: "周八",
-    role: "专员",
-    status: "休假",
-    progress: 28,
-  },
-]
-
-export function MergedTableDemo() {
-  return (
-    <div className="space-y-8">
-      <div>
-        <h3 className="text-lg font-semibold mb-4">员工信息表</h3>
-        <MergedTable
-          data={sampleData}
-          columns={[
-            {
-              key: "department",
-              header: "部门",
-              merge: true,
-              filterable: true,
-              sortable: true,
-              className: "font-medium",
-              defaultVisible: true,
-            },
-            {
-              key: "team",
-              header: "团队",
-              merge: true,
-              filterable: true,
-              sortable: true,
-              defaultVisible: true,
-            },
-            {
-              key: "employee",
-              header: "员工姓名",
-              merge: false,
-              filterable: true,
-              sortable: true,
-              defaultVisible: true,
-            },
-            {
-              key: "role",
-              header: "职位",
-              merge: false,
-              filterable: true,
-              sortable: true,
-              defaultVisible: false,
-            },
-            {
-              key: "status",
-              header: "状态",
-              merge: false,
-              filterable: true,
-              sortable: true,
-              defaultVisible: true,
-              render: (value) => (
-                <span
-                  className={cn(
-                    "inline-flex items-center rounded-full px-2 py-1 text-xs font-medium",
-                    value === "在职" ? "bg-green-500/10 text-green-500" : "bg-yellow-500/10 text-yellow-500",
-                  )}
-                >
-                  {value}
-                </span>
-              ),
-            },
-            {
-              key: "progress",
-              header: "完成度",
-              merge: false,
-              sortable: true,
-              defaultVisible: true,
-              render: (value) => <CircularProgress value={value as number} />,
-            },
-          ]}
-        />
+// 服务器组件 - 只负责数据获取
+export async function MergedTableDemo() {
+  try {
+    const sampleData = await fetchSampleData()
+    
+    if (sampleData.length === 0) {
+      return (
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <div className="text-gray-400 text-4xl mb-4">📄</div>
+            <p className="text-gray-500">暂无数据</p>
+          </div>
+        </div>
+      )
+    }
+    
+    return <MergedTableClient data={sampleData} />
+  } catch (error) {
+    console.error("Failed to fetch data:", error)
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="text-red-500 text-4xl mb-4">❌</div>
+          <p className="text-red-500 font-medium mb-2">数据加载失败</p>
+          <p className="text-gray-500 text-sm">
+            {error instanceof Error ? error.message : "获取数据失败"}
+          </p>
+        </div>
       </div>
-    </div>
-  )
+    )
+  }
 }

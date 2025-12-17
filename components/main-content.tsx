@@ -38,10 +38,6 @@ export function MainContent() {
           ))}
         </div>
 
-        <div>
-          <MergedTableDemo />
-        </div>
-
         {/* Content Area */}
         <div className="grid gap-6 md:grid-cols-2">
           <Card className="p-6">

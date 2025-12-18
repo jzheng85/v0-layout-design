@@ -1,6 +1,5 @@
 import { Card } from "@/components/ui/card"
 import { ArrowUpRight, TrendingUp } from "lucide-react"
-import { MergedTableDemo } from "@/components/merged-table-demo"
 
 export function MainContent() {
   const stats = [

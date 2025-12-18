@@ -274,7 +274,7 @@ export function MergedTable<T extends Record<string, any>>({ data, columns, clas
                 列设置
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuContent align="end" className="w-56 max-h-[400px] overflow-y-auto">
               <div className="px-2 py-1.5 text-sm font-semibold">管理列</div>
               <DropdownMenuSeparator />
               {columnOrder.map((key, index) => {
@@ -318,151 +318,157 @@ export function MergedTable<T extends Record<string, any>>({ data, columns, clas
           </DropdownMenu>
         </div>
       </div>
-      <Table>
-        <TableHeader>
-          <TableRow className="hover:bg-transparent border-b-2">
-            {displayColumns.map((column) => {
-              const hasFeatures = column.sortable || column.filterable
-              const isFiltered = filters[String(column.key)]
-              const sortInfo = getSortInfo(column.key)
+      <div className="overflow-x-auto w-full">
+        <Table className="min-w-max">
+          <TableHeader>
+            <TableRow className="hover:bg-transparent border-b-2">
+              {displayColumns.map((column) => {
+                const hasFeatures = column.sortable || column.filterable
+                const isFiltered = filters[String(column.key)]
+                const sortInfo = getSortInfo(column.key)
 
-              return (
-                <TableHead
-                  key={String(column.key)}
-                  className={cn(column.className, "bg-muted/50 font-bold text-foreground h-14")}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-1">
-                      <span className="font-semibold">{column.header}</span>
-                      {sortInfo && (
-                        <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-primary text-primary-foreground text-xs font-bold">
-                          {sortInfo.priority + 1}
-                        </span>
+                return (
+                  <TableHead
+                    key={String(column.key)}
+                    className={cn(
+                      column.className,
+                      "bg-muted/50 font-bold text-foreground h-14 whitespace-nowrap min-w-[120px]",
+                    )}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1">
+                        <span className="font-semibold">{column.header}</span>
+                        {sortInfo && (
+                          <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-primary text-primary-foreground text-xs font-bold">
+                            {sortInfo.priority + 1}
+                          </span>
+                        )}
+                      </div>
+                      {hasFeatures && (
+                        <DropdownMenu
+                          open={openDropdown === String(column.key)}
+                          onOpenChange={(open) => setOpenDropdown(open ? String(column.key) : null)}
+                        >
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className={cn("h-7 w-7 p-0 hover:bg-muted", (isFiltered || sortInfo) && "text-primary")}
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="start" className="w-56">
+                            {column.sortable && (
+                              <>
+                                <DropdownMenuItem
+                                  onClick={() => handleSort(column.key, "asc")}
+                                  className={cn("cursor-pointer", sortInfo?.direction === "asc" && "bg-accent")}
+                                >
+                                  <ArrowUp className="mr-2 h-4 w-4" />
+                                  升序排列
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => handleSort(column.key, "desc")}
+                                  className={cn("cursor-pointer", sortInfo?.direction === "desc" && "bg-accent")}
+                                >
+                                  <ArrowDown className="mr-2 h-4 w-4" />
+                                  降序排列
+                                </DropdownMenuItem>
+                                {sortInfo && (
+                                  <DropdownMenuItem
+                                    onClick={() => handleClearSort(column.key)}
+                                    className="cursor-pointer"
+                                  >
+                                    <X className="mr-2 h-4 w-4" />
+                                    清除此列排序
+                                  </DropdownMenuItem>
+                                )}
+                                {column.filterable && <DropdownMenuSeparator />}
+                              </>
+                            )}
+                            {column.filterable && (
+                              <div className="p-2">
+                                <div className="flex items-center gap-2">
+                                  <Input
+                                    placeholder="筛选..."
+                                    value={filters[String(column.key)] || ""}
+                                    onChange={(e) => handleFilterChange(String(column.key), e.target.value)}
+                                    className="h-8"
+                                    onClick={(e) => e.stopPropagation()}
+                                  />
+                                  {isFiltered && (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-8 w-8 p-0"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        handleClearFilter(String(column.key))
+                                      }}
+                                    >
+                                      <X className="h-4 w-4" />
+                                    </Button>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       )}
                     </div>
-                    {hasFeatures && (
-                      <DropdownMenu
-                        open={openDropdown === String(column.key)}
-                        onOpenChange={(open) => setOpenDropdown(open ? String(column.key) : null)}
-                      >
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className={cn("h-7 w-7 p-0 hover:bg-muted", (isFiltered || sortInfo) && "text-primary")}
-                          >
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="start" className="w-56">
-                          {column.sortable && (
-                            <>
-                              <DropdownMenuItem
-                                onClick={() => handleSort(column.key, "asc")}
-                                className={cn("cursor-pointer", sortInfo?.direction === "asc" && "bg-accent")}
-                              >
-                                <ArrowUp className="mr-2 h-4 w-4" />
-                                升序排列
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => handleSort(column.key, "desc")}
-                                className={cn("cursor-pointer", sortInfo?.direction === "desc" && "bg-accent")}
-                              >
-                                <ArrowDown className="mr-2 h-4 w-4" />
-                                降序排列
-                              </DropdownMenuItem>
-                              {sortInfo && (
-                                <DropdownMenuItem
-                                  onClick={() => handleClearSort(column.key)}
-                                  className="cursor-pointer"
-                                >
-                                  <X className="mr-2 h-4 w-4" />
-                                  清除此列排序
-                                </DropdownMenuItem>
-                              )}
-                              {column.filterable && <DropdownMenuSeparator />}
-                            </>
-                          )}
-                          {column.filterable && (
-                            <div className="p-2">
-                              <div className="flex items-center gap-2">
-                                <Input
-                                  placeholder="筛选..."
-                                  value={filters[String(column.key)] || ""}
-                                  onChange={(e) => handleFilterChange(String(column.key), e.target.value)}
-                                  className="h-8"
-                                  onClick={(e) => e.stopPropagation()}
-                                />
-                                {isFiltered && (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-8 w-8 p-0"
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      handleClearFilter(String(column.key))
-                                    }}
-                                  >
-                                    <X className="h-4 w-4" />
-                                  </Button>
-                                )}
-                              </div>
-                            </div>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    )}
-                  </div>
-                </TableHead>
-              )
-            })}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {sortedAndFilteredData.length === 0 ? (
-            <TableRow>
-              <TableCell colSpan={displayColumns.length} className="text-center text-muted-foreground py-8">
-                没有找到匹配的数据
-              </TableCell>
+                  </TableHead>
+                )
+              })}
             </TableRow>
-          ) : (
-            sortedAndFilteredData.map((row, rowIndex) => (
-              <TableRow key={rowIndex} className="hover:bg-transparent">
-                {displayColumns.map((column) => {
-                  const cellSpan = calculateMerges[String(column.key)][rowIndex]
-
-                  if (cellSpan.skip) {
-                    return null
-                  }
-
-                  const value = row[column.key]
-                  const content = column.render ? column.render(value, row) : String(value)
-
-                  const isLastRowOfSpan =
-                    rowIndex + cellSpan.rowSpan === sortedAndFilteredData.length ||
-                    rowIndex + cellSpan.rowSpan < sortedAndFilteredData.length
-                  const showBottomBorder = rowIndex + cellSpan.rowSpan < sortedAndFilteredData.length
-
-                  return (
-                    <TableCell
-                      key={String(column.key)}
-                      rowSpan={cellSpan.rowSpan}
-                      className={cn(
-                        column.className,
-                        "align-middle transition-colors hover:bg-muted/50",
-                        "border-r last:border-r-0",
-                        showBottomBorder && "border-b",
-                      )}
-                    >
-                      {content}
-                    </TableCell>
-                  )
-                })}
+          </TableHeader>
+          <TableBody>
+            {sortedAndFilteredData.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={displayColumns.length} className="text-center text-muted-foreground py-8">
+                  没有找到匹配的数据
+                </TableCell>
               </TableRow>
-            ))
-          )}
-        </TableBody>
-      </Table>
+            ) : (
+              sortedAndFilteredData.map((row, rowIndex) => (
+                <TableRow key={rowIndex} className="hover:bg-transparent">
+                  {displayColumns.map((column) => {
+                    const cellSpan = calculateMerges[String(column.key)][rowIndex]
+
+                    if (cellSpan.skip) {
+                      return null
+                    }
+
+                    const value = row[column.key]
+                    const content = column.render ? column.render(value, row) : String(value)
+
+                    const isLastRowOfSpan =
+                      rowIndex + cellSpan.rowSpan === sortedAndFilteredData.length ||
+                      rowIndex + cellSpan.rowSpan < sortedAndFilteredData.length
+                    const showBottomBorder = rowIndex + cellSpan.rowSpan < sortedAndFilteredData.length
+
+                    return (
+                      <TableCell
+                        key={String(column.key)}
+                        rowSpan={cellSpan.rowSpan}
+                        className={cn(
+                          column.className,
+                          "align-middle transition-colors hover:bg-muted/50",
+                          "border-r last:border-r-0",
+                          showBottomBorder && "border-b",
+                          "whitespace-nowrap min-w-[120px]",
+                        )}
+                      >
+                        {content}
+                      </TableCell>
+                    )
+                  })}
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   )
 }

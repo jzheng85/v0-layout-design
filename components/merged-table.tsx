@@ -13,7 +13,17 @@ import {
   DropdownMenuCheckboxItem,
 } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
-import { MoreVertical, ArrowUp, ArrowDown, X, Columns3, GripVertical, ChevronUp, ChevronDown } from "lucide-react"
+import {
+  MoreVertical,
+  ArrowUp,
+  ArrowDown,
+  X,
+  Columns3,
+  GripVertical,
+  ChevronUp,
+  ChevronDown,
+  Search,
+} from "lucide-react"
 
 interface MergedTableColumn<T> {
   key: keyof T
@@ -39,13 +49,17 @@ interface CellSpan {
 
 type SortDirection = "asc" | "desc" | null
 
+interface SortConfig<T> {
+  key: keyof T
+  direction: "asc" | "desc"
+  priority: number
+}
+
 export function MergedTable<T extends Record<string, any>>({ data, columns, className }: MergedTableProps<T>) {
   const [filters, setFilters] = React.useState<Record<string, string>>({})
-  const [sortConfig, setSortConfig] = React.useState<{ key: keyof T | null; direction: SortDirection }>({
-    key: null,
-    direction: null,
-  })
+  const [sortConfigs, setSortConfigs] = React.useState<SortConfig<T>[]>([])
   const [openDropdown, setOpenDropdown] = React.useState<string | null>(null)
+  const [globalSearch, setGlobalSearch] = React.useState("")
   const [visibleColumns, setVisibleColumns] = React.useState<Record<string, boolean>>(() => {
     const initial: Record<string, boolean> = {}
     columns.forEach((col) => {
@@ -62,32 +76,35 @@ export function MergedTable<T extends Record<string, any>>({ data, columns, clas
   }, [columns, visibleColumns, columnOrder])
 
   const sortedAndFilteredData = React.useMemo(() => {
-    const processedData = [...data]
+    let processedData = [...data]
 
-    if (sortConfig.key && sortConfig.direction) {
+    if (sortConfigs.length > 0) {
       processedData.sort((a, b) => {
-        const aValue = a[sortConfig.key!]
-        const bValue = b[sortConfig.key!]
+        for (const config of sortConfigs) {
+          const aValue = a[config.key]
+          const bValue = b[config.key]
 
-        if (aValue === null || aValue === undefined) return 1
-        if (bValue === null || bValue === undefined) return -1
+          if (aValue === null || aValue === undefined) return 1
+          if (bValue === null || bValue === undefined) return -1
 
-        if (typeof aValue === "number" && typeof bValue === "number") {
-          return sortConfig.direction === "asc" ? aValue - bValue : bValue - aValue
+          let comparison = 0
+          if (typeof aValue === "number" && typeof bValue === "number") {
+            comparison = aValue - bValue
+          } else {
+            const aStr = String(aValue).toLowerCase()
+            const bStr = String(bValue).toLowerCase()
+            comparison = aStr.localeCompare(bStr)
+          }
+
+          if (comparison !== 0) {
+            return config.direction === "asc" ? comparison : -comparison
+          }
         }
-
-        const aStr = String(aValue).toLowerCase()
-        const bStr = String(bValue).toLowerCase()
-
-        if (sortConfig.direction === "asc") {
-          return aStr.localeCompare(bStr)
-        } else {
-          return bStr.localeCompare(aStr)
-        }
+        return 0
       })
     }
 
-    return processedData.filter((row) => {
+    processedData = processedData.filter((row) => {
       return columns.every((column) => {
         const filterValue = filters[String(column.key)]
         if (!filterValue || !column.filterable) return true
@@ -96,7 +113,18 @@ export function MergedTable<T extends Record<string, any>>({ data, columns, clas
         return cellValue.includes(filterValue.toLowerCase())
       })
     })
-  }, [data, filters, columns, sortConfig])
+
+    if (globalSearch) {
+      processedData = processedData.filter((row) => {
+        return columns.some((column) => {
+          const cellValue = String(row[column.key]).toLowerCase()
+          return cellValue.includes(globalSearch.toLowerCase())
+        })
+      })
+    }
+
+    return processedData
+  }, [data, filters, columns, sortConfigs, globalSearch])
 
   const calculateMerges = React.useMemo(() => {
     const mergeMap: Record<string, CellSpan[]> = {}
@@ -146,16 +174,31 @@ export function MergedTable<T extends Record<string, any>>({ data, columns, clas
     }))
   }
 
-  const handleSort = (key: keyof T, direction: SortDirection) => {
-    setSortConfig({ key, direction })
+  const handleSort = (key: keyof T, direction: "asc" | "desc") => {
+    setSortConfigs((prev) => {
+      const existingIndex = prev.findIndex((config) => config.key === key)
+
+      if (existingIndex >= 0) {
+        // Update existing sort
+        const updated = [...prev]
+        updated[existingIndex] = { key, direction, priority: updated[existingIndex].priority }
+        return updated
+      } else {
+        // Add new sort with lowest priority (highest number)
+        const maxPriority = prev.length > 0 ? Math.max(...prev.map((c) => c.priority)) : -1
+        return [...prev, { key, direction, priority: maxPriority + 1 }]
+      }
+    })
     setOpenDropdown(null)
   }
 
   const handleClearSort = (columnKey: keyof T) => {
-    if (sortConfig.key === columnKey) {
-      setSortConfig({ key: null, direction: null })
-    }
+    setSortConfigs((prev) => prev.filter((config) => config.key !== columnKey))
     setOpenDropdown(null)
+  }
+
+  const handleClearAllSorts = () => {
+    setSortConfigs([])
   }
 
   const handleClearFilter = (key: string) => {
@@ -193,15 +236,95 @@ export function MergedTable<T extends Record<string, any>>({ data, columns, clas
     })
   }
 
+  const getSortInfo = (key: keyof T) => {
+    const sortConfig = sortConfigs.find((config) => config.key === key)
+    return sortConfig
+  }
+
   return (
     <div className={cn("rounded-lg border bg-card", className)}>
+      <div className="flex items-center justify-between gap-4 p-4 border-b bg-muted/30">
+        <div className="flex items-center gap-2 flex-1 max-w-sm">
+          <Search className="h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="搜索表格内容..."
+            value={globalSearch}
+            onChange={(e) => setGlobalSearch(e.target.value)}
+            className="h-9"
+          />
+          {globalSearch && (
+            <Button variant="ghost" size="sm" className="h-9 w-9 p-0" onClick={() => setGlobalSearch("")}>
+              <X className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {sortConfigs.length > 0 && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <span>已排序: {sortConfigs.length}</span>
+              <Button variant="ghost" size="sm" onClick={handleClearAllSorts} className="h-8">
+                清除排序
+              </Button>
+            </div>
+          )}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="h-9 bg-transparent">
+                <Columns3 className="h-4 w-4 mr-2" />
+                列设置
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <div className="px-2 py-1.5 text-sm font-semibold">管理列</div>
+              <DropdownMenuSeparator />
+              {columnOrder.map((key, index) => {
+                const column = columns.find((col) => String(col.key) === key)
+                if (!column) return null
+
+                return (
+                  <div key={key} className="flex items-center gap-1 px-2 py-1.5 hover:bg-accent rounded-sm group">
+                    <div className="flex flex-col gap-0.5">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-3 w-4 p-0 hover:bg-muted opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => moveColumnUp(key)}
+                        disabled={index === 0}
+                      >
+                        <ChevronUp className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-3 w-4 p-0 hover:bg-muted opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => moveColumnDown(key)}
+                        disabled={index === columnOrder.length - 1}
+                      >
+                        <ChevronDown className="h-3 w-3" />
+                      </Button>
+                    </div>
+                    <GripVertical className="h-4 w-4 text-muted-foreground" />
+                    <DropdownMenuCheckboxItem
+                      checked={visibleColumns[key]}
+                      onCheckedChange={() => toggleColumnVisibility(key)}
+                      className="flex-1"
+                    >
+                      {column.header}
+                    </DropdownMenuCheckboxItem>
+                  </div>
+                )
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
       <Table>
         <TableHeader>
           <TableRow className="hover:bg-transparent border-b-2">
             {displayColumns.map((column) => {
               const hasFeatures = column.sortable || column.filterable
               const isFiltered = filters[String(column.key)]
-              const isSorted = sortConfig.key === column.key
+              const sortInfo = getSortInfo(column.key)
 
               return (
                 <TableHead
@@ -209,7 +332,14 @@ export function MergedTable<T extends Record<string, any>>({ data, columns, clas
                   className={cn(column.className, "bg-muted/50 font-bold text-foreground h-14")}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span className="font-semibold">{column.header}</span>
+                    <div className="flex items-center gap-1">
+                      <span className="font-semibold">{column.header}</span>
+                      {sortInfo && (
+                        <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-primary text-primary-foreground text-xs font-bold">
+                          {sortInfo.priority + 1}
+                        </span>
+                      )}
+                    </div>
                     {hasFeatures && (
                       <DropdownMenu
                         open={openDropdown === String(column.key)}
@@ -219,7 +349,7 @@ export function MergedTable<T extends Record<string, any>>({ data, columns, clas
                           <Button
                             variant="ghost"
                             size="sm"
-                            className={cn("h-7 w-7 p-0 hover:bg-muted", (isFiltered || isSorted) && "text-primary")}
+                            className={cn("h-7 w-7 p-0 hover:bg-muted", (isFiltered || sortInfo) && "text-primary")}
                           >
                             <MoreVertical className="h-4 w-4" />
                           </Button>
@@ -229,31 +359,25 @@ export function MergedTable<T extends Record<string, any>>({ data, columns, clas
                             <>
                               <DropdownMenuItem
                                 onClick={() => handleSort(column.key, "asc")}
-                                className={cn(
-                                  "cursor-pointer",
-                                  sortConfig.key === column.key && sortConfig.direction === "asc" && "bg-accent",
-                                )}
+                                className={cn("cursor-pointer", sortInfo?.direction === "asc" && "bg-accent")}
                               >
                                 <ArrowUp className="mr-2 h-4 w-4" />
-                                Sort Ascending
+                                升序排列
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 onClick={() => handleSort(column.key, "desc")}
-                                className={cn(
-                                  "cursor-pointer",
-                                  sortConfig.key === column.key && sortConfig.direction === "desc" && "bg-accent",
-                                )}
+                                className={cn("cursor-pointer", sortInfo?.direction === "desc" && "bg-accent")}
                               >
                                 <ArrowDown className="mr-2 h-4 w-4" />
-                                Sort Descending
+                                降序排列
                               </DropdownMenuItem>
-                              {isSorted && (
+                              {sortInfo && (
                                 <DropdownMenuItem
                                   onClick={() => handleClearSort(column.key)}
                                   className="cursor-pointer"
                                 >
                                   <X className="mr-2 h-4 w-4" />
-                                  Clear Sort
+                                  清除此列排序
                                 </DropdownMenuItem>
                               )}
                               {column.filterable && <DropdownMenuSeparator />}
@@ -263,7 +387,7 @@ export function MergedTable<T extends Record<string, any>>({ data, columns, clas
                             <div className="p-2">
                               <div className="flex items-center gap-2">
                                 <Input
-                                  placeholder="Filter..."
+                                  placeholder="筛选..."
                                   value={filters[String(column.key)] || ""}
                                   onChange={(e) => handleFilterChange(String(column.key), e.target.value)}
                                   className="h-8"
@@ -292,63 +416,13 @@ export function MergedTable<T extends Record<string, any>>({ data, columns, clas
                 </TableHead>
               )
             })}
-            <TableHead className="bg-muted/50 w-[60px]">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0 hover:bg-muted">
-                    <Columns3 className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
-                  <div className="px-2 py-1.5 text-sm font-semibold">Manage columns</div>
-                  <DropdownMenuSeparator />
-                  {columnOrder.map((key, index) => {
-                    const column = columns.find((col) => String(col.key) === key)
-                    if (!column) return null
-
-                    return (
-                      <div key={key} className="flex items-center gap-1 px-2 py-1.5 hover:bg-accent rounded-sm group">
-                        <div className="flex flex-col gap-0.5">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-3 w-4 p-0 hover:bg-muted opacity-0 group-hover:opacity-100 transition-opacity"
-                            onClick={() => moveColumnUp(key)}
-                            disabled={index === 0}
-                          >
-                            <ChevronUp className="h-3 w-3" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-3 w-4 p-0 hover:bg-muted opacity-0 group-hover:opacity-100 transition-opacity"
-                            onClick={() => moveColumnDown(key)}
-                            disabled={index === columnOrder.length - 1}
-                          >
-                            <ChevronDown className="h-3 w-3" />
-                          </Button>
-                        </div>
-                        <GripVertical className="h-4 w-4 text-muted-foreground" />
-                        <DropdownMenuCheckboxItem
-                          checked={visibleColumns[key]}
-                          onCheckedChange={() => toggleColumnVisibility(key)}
-                          className="flex-1"
-                        >
-                          {column.header}
-                        </DropdownMenuCheckboxItem>
-                      </div>
-                    )
-                  })}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {sortedAndFilteredData.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={displayColumns.length + 1} className="text-center text-muted-foreground py-8">
-                No results found
+              <TableCell colSpan={displayColumns.length} className="text-center text-muted-foreground py-8">
+                没有找到匹配的数据
               </TableCell>
             </TableRow>
           ) : (
@@ -364,21 +438,26 @@ export function MergedTable<T extends Record<string, any>>({ data, columns, clas
                   const value = row[column.key]
                   const content = column.render ? column.render(value, row) : String(value)
 
+                  const isLastRowOfSpan =
+                    rowIndex + cellSpan.rowSpan === sortedAndFilteredData.length ||
+                    rowIndex + cellSpan.rowSpan < sortedAndFilteredData.length
+                  const showBottomBorder = rowIndex + cellSpan.rowSpan < sortedAndFilteredData.length
+
                   return (
                     <TableCell
                       key={String(column.key)}
                       rowSpan={cellSpan.rowSpan}
                       className={cn(
                         column.className,
-                        cellSpan.rowSpan > 1 && "align-middle border-r last:border-r-0",
-                        "transition-colors hover:bg-muted/50",
+                        "align-middle transition-colors hover:bg-muted/50",
+                        "border-r last:border-r-0",
+                        showBottomBorder && "border-b",
                       )}
                     >
                       {content}
                     </TableCell>
                   )
                 })}
-                <TableCell className="w-[60px]" />
               </TableRow>
             ))
           )}
